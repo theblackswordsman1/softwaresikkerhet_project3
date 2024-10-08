@@ -3,6 +3,7 @@ Flask-SQLAlchemy
 Flask-WTF
 WTForms==2.2.1
 coverage
+db-sqlite3
 # ecdsa
 # paramiko
 # pycrypto

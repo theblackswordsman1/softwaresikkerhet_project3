@@ -3,12 +3,29 @@
 # ----------------------------------------------------------------------------#
 
 from flask import Flask, render_template, request
+import sqlite3
 
 # from flask.ext.sqlalchemy import SQLAlchemy
 import logging
 from logging import Formatter, FileHandler
 from forms import *
 import os
+
+# ----------------------------------------------------------------------------#
+# DB Setup
+# ----------------------------------------------------------------------------#
+connection = sqlite3.connect("database.db")
+cursor = connection.cursor()
+
+cursor.execute(
+    "CREATE TABLE IF NOT EXISTS post (id INTEGER PRIMARY KEY, title TEXT, content TEXT)"
+)
+
+cursor.execute(
+    "INSERT INTO post (title, content) VALUES ('Vunerable Blog', 'This is a vunerable blog')"
+)
+
+connection.commit()
 
 # ----------------------------------------------------------------------------#
 # App Config.
@@ -78,6 +95,28 @@ def vunerableblog():
 @app.route("/secureblog")
 def secureblog():
     return render_template("pages/secureblog.html")
+
+
+@app.route("/posts", methods=["GET", "POST"])
+def manage_posts():
+    if request.method == "POST":
+        title = request.form["title"]
+        content = request.form["content"]
+        prepared_statement = (
+            "INSERT INTO post (title, content) VALUES ('"
+            + title
+            + "', '"
+            + content
+            + "')"
+        )
+        cursor.execute(prepared_statement)
+        connection.commit()
+        return "Post created successfully", 201
+
+    elif request.method == "GET":
+        cursor.execute("SELECT * FROM post")
+        posts = cursor.fetchall()
+        return render_template("pages/posts.html", posts=posts)
 
 
 # Error handlers.
