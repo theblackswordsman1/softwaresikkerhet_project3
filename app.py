@@ -21,10 +21,6 @@ cursor.execute(
     "CREATE TABLE IF NOT EXISTS post (id INTEGER PRIMARY KEY, title TEXT, content TEXT)"
 )
 
-cursor.execute(
-    "INSERT INTO post (title, content) VALUES ('Vunerable Blog', '<script>alert(1)</script>')"
-)
-
 connection.commit()
 
 # ----------------------------------------------------------------------------#
@@ -99,37 +95,27 @@ def forgot():
 
 @app.route("/vunerableblog", methods=["GET", "POST"])
 def vunerableblog():
-    if request.method == "GET":
-        posts = getAllPosts()
-        print(posts)
-        return render_template("pages/vunerableblog.html", posts=posts)
-    elif request.method == "POST":
+    if request.method == "POST":
         title = request.form["title"]
         content = request.form["content"]
+        # Also vunerable to SQL injection
         sqlstatement = f"INSERT INTO post (title, content) VALUES ('{title}', '{content}')"
-        cursor.execute(
-            sqlstatement
-        )
+        cursor.execute(sqlstatement)
         connection.commit()
-        posts = getAllPosts()
-        return render_template("pages/vunerableblog.html", posts=posts)
+    posts = getAllPosts()
+    return render_template("pages/vunerableblog.html", posts=posts)
 
 
 @app.route("/secureblog", methods=["GET", "POST"])
 def secureblog():
-    if request.method == "GET":
-        posts = getAllPosts()
-        print(posts)
-        return render_template("pages/secureblog.html", posts=posts)
-    elif request.method == "POST":
+    if request.method == "POST":
         title = request.form["title"]
         content = request.form["content"]
         sqlstatement = "INSERT INTO post (title, content) VALUES (?, ?)"
         cursor.execute(sqlstatement, (title, content))
         connection.commit()
-        posts = getAllPosts()
-        connection.commit()
-        return render_template("pages/secureblog.html", posts=posts)
+    posts = getAllPosts()
+    return render_template("pages/secureblog.html", posts=posts)
 
 
 

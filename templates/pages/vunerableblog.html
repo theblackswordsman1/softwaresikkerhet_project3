@@ -13,7 +13,7 @@
     {% for post in posts %}
       <li>
         <h3>{{ post[1] }}</h3> <!-- Title -->
-        <p>{{ post[2] | safe}}</p>   <!-- Content -->
+        <p>{{ post[2] | safe}}</p>   <!-- Content marked as safe content -->
       </li>
     {% endfor %}
   </ul>
