@@ -5,6 +5,34 @@
 <div class="page-header">
   <h1>Sticky footer with fixed navbar</h1>
 </div>
-<p class="lead">Secure Blog</p>
+<p class="lead">Vulnerable Blog</p>
+
+<!-- Display posts -->
+<div class="posts-section">
+  <ul>
+    {% for post in posts %}
+      <li>
+        <h3>{{ post[1] }}</h3> <!-- Title -->
+        <p>{{ post[2] }}</p>   <!-- Content -->
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+
+<!-- Form to add a new comment -->
+<div class="comment-form">
+  <h3>Add a New Comment</h3>
+  <form action="/secureblog" method="POST">
+    <div class="form-group">
+      <label for="title">Title:</label>
+      <input type="text" id="title" name="title" class="form-control" required>
+    </div>
+    <div class="form-group">
+      <label for="content">Comment:</label>
+      <textarea id="content" name="content" class="form-control" rows="3" required></textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Submit Comment</button>
+  </form>
+</div>
 
 {% endblock %}

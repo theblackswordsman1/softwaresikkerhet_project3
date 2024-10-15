@@ -14,7 +14,7 @@ import os
 # ----------------------------------------------------------------------------#
 # DB Setup
 # ----------------------------------------------------------------------------#
-connection = sqlite3.connect("database.db")
+connection = sqlite3.connect("database.db", check_same_thread=False)
 cursor = connection.cursor()
 
 cursor.execute(
@@ -22,7 +22,7 @@ cursor.execute(
 )
 
 cursor.execute(
-    "INSERT INTO post (title, content) VALUES ('Vunerable Blog', 'This is a vunerable blog')"
+    "INSERT INTO post (title, content) VALUES ('Vunerable Blog', '<script>alert(1)</script>')"
 )
 
 connection.commit()
@@ -54,6 +54,16 @@ def login_required(test):
             return redirect(url_for('login'))
     return wrap
 """
+
+# ----------------------------------------------------------------------------#
+# DB requests.
+# ----------------------------------------------------------------------------#
+
+def getAllPosts():
+    cursor.execute("SELECT * FROM post")
+    posts = cursor.fetchall()
+    return posts
+
 # ----------------------------------------------------------------------------#
 # Controllers.
 # ----------------------------------------------------------------------------#
@@ -87,36 +97,40 @@ def forgot():
     return render_template("forms/forgot.html", form=form)
 
 
-@app.route("/vunerableblog")
+@app.route("/vunerableblog", methods=["GET", "POST"])
 def vunerableblog():
-    return render_template("pages/vunerableblog.html")
-
-
-@app.route("/secureblog")
-def secureblog():
-    return render_template("pages/secureblog.html")
-
-
-@app.route("/posts", methods=["GET", "POST"])
-def manage_posts():
-    if request.method == "POST":
+    if request.method == "GET":
+        posts = getAllPosts()
+        print(posts)
+        return render_template("pages/vunerableblog.html", posts=posts)
+    elif request.method == "POST":
         title = request.form["title"]
         content = request.form["content"]
-        prepared_statement = (
-            "INSERT INTO post (title, content) VALUES ('"
-            + title
-            + "', '"
-            + content
-            + "')"
+        sqlstatement = f"INSERT INTO post (title, content) VALUES ('{title}', '{content}')"
+        cursor.execute(
+            sqlstatement
         )
-        cursor.execute(prepared_statement)
         connection.commit()
-        return "Post created successfully", 201
+        posts = getAllPosts()
+        return render_template("pages/vunerableblog.html", posts=posts)
 
-    elif request.method == "GET":
-        cursor.execute("SELECT * FROM post")
-        posts = cursor.fetchall()
-        return render_template("pages/posts.html", posts=posts)
+
+@app.route("/secureblog", methods=["GET", "POST"])
+def secureblog():
+    if request.method == "GET":
+        posts = getAllPosts()
+        print(posts)
+        return render_template("pages/secureblog.html", posts=posts)
+    elif request.method == "POST":
+        title = request.form["title"]
+        content = request.form["content"]
+        sqlstatement = "INSERT INTO post (title, content) VALUES (?, ?)"
+        cursor.execute(sqlstatement, (title, content))
+        connection.commit()
+        posts = getAllPosts()
+        connection.commit()
+        return render_template("pages/secureblog.html", posts=posts)
+
 
 
 # Error handlers.
