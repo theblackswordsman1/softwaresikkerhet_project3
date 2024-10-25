@@ -2,7 +2,7 @@
 # Imports
 # ----------------------------------------------------------------------------#
 
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, make_response
 import sqlite3
 
 # from flask.ext.sqlalchemy import SQLAlchemy
@@ -115,9 +115,11 @@ def secureblog():
         cursor.execute(sqlstatement, (title, content))
         connection.commit()
     posts = getAllPosts()
-    return render_template("pages/secureblog.html", posts=posts)
-
-
+    
+    # Add CSP header for the secure blog page
+    response = make_response(render_template("pages/secureblog.html", posts=posts))
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self';"
+    return response
 
 # Error handlers.
 
