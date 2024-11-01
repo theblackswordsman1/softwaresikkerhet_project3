@@ -1,35 +1,55 @@
+#app.py
 # ----------------------------------------------------------------------------#
 # Imports
 # ----------------------------------------------------------------------------#
+from datetime import datetime, timedelta
 
-from flask import Flask, render_template, request, make_response
-import sqlite3
+from flask import Flask, render_template, request, make_response, redirect, url_for, url_for
+from flask_dance.contrib.google import make_google_blueprint, google
+from flask_login import LoginManager, login_user, logout_user, current_user
+from db_init import initialize_database, get_session
+from config import Config
+from models import User, Session, db
+from flask_dance.consumer.storage.sqla import SQLAlchemyStorage
 
 # from flask.ext.sqlalchemy import SQLAlchemy
 import logging
 from logging import Formatter, FileHandler
 from forms import *
-import os
 
 # ----------------------------------------------------------------------------#
 # DB Setup
 # ----------------------------------------------------------------------------#
-connection = sqlite3.connect("database.db", check_same_thread=False)
-cursor = connection.cursor()
 
-cursor.execute(
-    "CREATE TABLE IF NOT EXISTS post (id INTEGER PRIMARY KEY, title TEXT, content TEXT)"
-)
 
-connection.commit()
 
 # ----------------------------------------------------------------------------#
 # App Config.
 # ----------------------------------------------------------------------------#
 
 app = Flask(__name__)
-app.config.from_object("config")
-# db = SQLAlchemy(app)
+app.config.from_object(Config)
+app.secret_key = Config.SECRET_KEY
+
+# Initialize the database
+db.init_app(app)
+
+# Create the database tables
+with app.app_context():
+    db.create_all()
+
+# Login manager.
+login_manager = LoginManager()
+login_manager.init_app(app)
+
+
+# Configure Google OAuth
+google_bp = make_google_blueprint(client_id=Config.GOOGLE_OAUTH_CLIENT_ID,
+                                  client_secret=Config.GOOGLE_OAUTH_CLIENT_SECRET,
+                                  storage=SQLAlchemyStorage(Session, db.session))
+app.register_blueprint(google_bp, url_prefix="/login")
+
+
 
 # Automatically tear down SQLAlchemy.
 """
@@ -55,10 +75,7 @@ def login_required(test):
 # DB requests.
 # ----------------------------------------------------------------------------#
 
-def getAllPosts():
-    cursor.execute("SELECT * FROM post")
-    posts = cursor.fetchall()
-    return posts
+
 
 # ----------------------------------------------------------------------------#
 # Controllers.
@@ -73,12 +90,6 @@ def home():
 @app.route("/about")
 def about():
     return render_template("pages/placeholder.about.html")
-
-
-@app.route("/login")
-def login():
-    form = LoginForm(request.form)
-    return render_template("forms/login.html", form=form)
 
 
 @app.route("/register")
@@ -100,10 +111,8 @@ def vunerableblog():
         content = request.form["content"]
         # Also vunerable to SQL injection
         sqlstatement = f"INSERT INTO post (title, content) VALUES ('{title}', '{content}')"
-        cursor.execute(sqlstatement)
         connection.commit()
-    posts = getAllPosts()
-    return render_template("pages/vunerableblog.html", posts=posts)
+    return render_template("pages/vunerableblog.html")
 
 
 @app.route("/secureblog", methods=["GET", "POST"])
@@ -112,14 +121,37 @@ def secureblog():
         title = request.form["title"]
         content = request.form["content"]
         sqlstatement = "INSERT INTO post (title, content) VALUES (?, ?)"
-        cursor.execute(sqlstatement, (title, content))
-        connection.commit()
-    posts = getAllPosts()
     
     # Add CSP header for the secure blog page
-    response = make_response(render_template("pages/secureblog.html", posts=posts))
+    response = make_response(render_template("pages/secureblog.html"))
     response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self';"
     return response
+
+@app.route("/oauth/google")
+def google_login():
+    if not google.authorized:
+        return redirect(url_for("google.login"))
+    resp = google.get("/oauth2/v1/userinfo")
+    assert resp.ok, resp.text
+    return resp.text
+
+@app.route("/logout")
+def logout():
+    token = google_bp.token["access_token"]
+    resp = google.post(
+        "https://accounts.google.com/o/oauth2/revoke",
+        params={"token": token},
+        headers={"Content-Type": "application/x-www-form-urlencoded"}
+    )
+    assert resp.ok, resp.text
+    logout_user()        # Delete Flask-Login's session cookie
+    del google_bp.token  # Delete OAuth token from storage
+    return redirect(url_for("home"))
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.get(user_id)
 
 # Error handlers.
 
@@ -140,10 +172,12 @@ if not app.debug:
     file_handler.setFormatter(
         Formatter("%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]")
     )
-    app.logger.setLevel(logging.INFO)
-    file_handler.setLevel(logging.INFO)
+    app.logger.setLevel(logging.DEBUG)
+    file_handler.setLevel(logging.DEBUG)
     app.logger.addHandler(file_handler)
     app.logger.info("errors")
+    logging.getLogger('flask_dance').setLevel(logging.DEBUG)
+    
 
 # ----------------------------------------------------------------------------#
 # Launch.
