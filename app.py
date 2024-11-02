@@ -4,12 +4,13 @@
 # ----------------------------------------------------------------------------#
 from datetime import datetime, timedelta
 
-from flask import Flask, render_template, request, make_response, redirect, url_for, url_for
+from flask import Flask, render_template, request, make_response, redirect, url_for, url_for, flash
 from flask_dance.contrib.google import make_google_blueprint, google
-from flask_login import LoginManager, login_user, logout_user, current_user
+from flask_dance.consumer import oauth_authorized
+from flask_login import LoginManager, login_user, logout_user, current_user, login_required
 from db_init import initialize_database, get_session
 from config import Config
-from models import User, Session, db
+from models import User, Session, OAuthUserData, db
 from flask_dance.consumer.storage.sqla import SQLAlchemyStorage
 
 # from flask.ext.sqlalchemy import SQLAlchemy
@@ -41,6 +42,11 @@ with app.app_context():
 # Login manager.
 login_manager = LoginManager()
 login_manager.init_app(app)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return db.session.query(User).get(user_id)
+
 
 
 # Configure Google OAuth
@@ -86,16 +92,15 @@ def login_required(test):
 def home():
     return render_template("pages/placeholder.home.html")
 
-
 @app.route("/about")
+@login_required
 def about():
     return render_template("pages/placeholder.about.html")
 
 
 @app.route("/register")
 def register():
-    form = RegisterForm(request.form)
-    return render_template("forms/register.html", form=form)
+    return render_template("forms/register.html")
 
 
 @app.route("/forgot")
@@ -131,9 +136,50 @@ def secureblog():
 def google_login():
     if not google.authorized:
         return redirect(url_for("google.login"))
-    resp = google.get("/oauth2/v1/userinfo")
-    assert resp.ok, resp.text
-    return resp.text
+    else:
+        flash("You are already signed in with Google!", "info")
+        return redirect(url_for("home"))
+
+@oauth_authorized.connect_via(google_bp)
+def google_logged_in(blueprint, token):
+    # Get user info from Google
+    resp = google.get("/oauth2/v2/userinfo")
+    if not resp.ok:
+        flash("Failed to fetch user info from Google.", "error")
+        return False  # Return False if fetching user info fails
+
+    user_info = resp.json()
+    # Extract fields
+    user_id = user_info.get("id")
+    name = user_info.get("name")
+    given_name = user_info.get("given_name")
+    family_name = user_info.get("family_name")
+    picture = user_info.get("picture")
+
+    # Store user info in OAuthUserData table if new
+    user_data = OAuthUserData.query.get(user_id)
+    if user_data is None:
+        user_data = OAuthUserData(
+            id=user_id,
+            name=name,
+            given_name=given_name,
+            family_name=family_name,
+            picture=picture
+        )
+        db.session.add(user_data)
+        db.session.commit()
+        
+    user = User.query.get(user_id)
+    if user is None:
+        user = User(id=user_id, username=name, email="hanusatv@gmail.com")
+        db.session.add(user)
+        db.session.commit()
+
+    login_user(load_user(user_id))
+    flash("Successfully signed in with Google!", "success")
+    return True  # Ensure to return True to signal Flask-Dance
+
+        
 
 @app.route("/logout")
 def logout():
@@ -146,12 +192,9 @@ def logout():
     assert resp.ok, resp.text
     logout_user()        # Delete Flask-Login's session cookie
     del google_bp.token  # Delete OAuth token from storage
+    flash("You have been logged out.", "info")
     return redirect(url_for("home"))
 
-
-@login_manager.user_loader
-def load_user(user_id):
-    return User.get(user_id)
 
 # Error handlers.
 
