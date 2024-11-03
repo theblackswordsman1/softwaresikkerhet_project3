@@ -2,18 +2,14 @@
 # ----------------------------------------------------------------------------#
 # Imports
 # ----------------------------------------------------------------------------#
-from datetime import datetime, timedelta
 
 from flask import Flask, render_template, request, make_response, redirect, url_for, url_for, flash
 from flask_dance.contrib.google import make_google_blueprint, google
 from flask_dance.consumer import oauth_authorized
-from flask_login import LoginManager, login_user, logout_user, current_user, login_required
-from db_init import initialize_database, get_session
+from flask_dance.consumer.storage.sqla import SQLAlchemyStorage
+from flask_login import LoginManager, login_user, logout_user, login_required
 from config import Config
 from models import User, Session, OAuthUserData, db
-from flask_dance.consumer.storage.sqla import SQLAlchemyStorage
-
-# from flask.ext.sqlalchemy import SQLAlchemy
 import logging
 from logging import Formatter, FileHandler
 from forms import *
@@ -134,7 +130,7 @@ def secureblog():
 
 @app.route("/oauth/google")
 def google_login():
-    if not google.authorized:
+    if not google.authorized: # Check if user is signed in with Google
         return redirect(url_for("google.login"))
     else:
         flash("You are already signed in with Google!", "info")

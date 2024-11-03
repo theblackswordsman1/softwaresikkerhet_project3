@@ -1,6 +1,5 @@
 from datetime import datetime
 import json
-import bcrypt
 from cryptography.fernet import Fernet
 from config import Config
 from flask_login import UserMixin
