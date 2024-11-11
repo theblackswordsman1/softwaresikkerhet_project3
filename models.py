@@ -1,3 +1,4 @@
+# models.py
 from datetime import datetime
 import json
 from cryptography.fernet import Fernet
@@ -5,10 +6,12 @@ from config import Config
 from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
 from flask_dance.consumer.storage.sqla import OAuthConsumerMixin
+from flask_bcrypt import Bcrypt
 
 cipher_suite = Fernet(Config.FERNET_SECRET_KEY)
 
 db = SQLAlchemy()
+bcrypt = Bcrypt()  # Initialize Bcrypt here
 
 
 class Session(OAuthConsumerMixin, db.Model):
@@ -37,26 +40,37 @@ class User(UserMixin, db.Model):
 
     id = db.Column(db.String(50), primary_key=True)
     _username = db.Column("username", db.String, unique=True, nullable=False)
-    _email = db.Column("email",db.String, unique=True, nullable=False)
+    _email = db.Column("email", db.String, unique=True, nullable=False)
+    password_hash = db.Column(db.String(128), nullable=True)  # Nullable for OAuth users
     created_at = db.Column(db.DateTime, default=datetime.now)
-    
+
     @property
     def username(self):
         return cipher_suite.decrypt(self._username.encode('utf-8')).decode('utf-8')
-    
+
     @username.setter
     def username(self, value):
         self._username = cipher_suite.encrypt(value.encode('utf-8')).decode('utf-8')
-        
+
     @property
     def email(self):
         return cipher_suite.decrypt(self._email.encode('utf-8')).decode('utf-8')
-    
+
     @email.setter
     def email(self, value):
         self._email = cipher_suite.encrypt(value.encode('utf-8')).decode('utf-8')
-    
-    
+
+    def set_password(self, password):
+        """Hashes the password and stores it."""
+        self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
+
+    def check_password(self, password):
+        """Checks if the provided password matches the stored hash."""
+        if not self.password_hash:
+            return False
+        return bcrypt.check_password_hash(self.password_hash, password)
+
+
 class OAuthUserData(db.Model):
     __tablename__ = 'oauth_user_data'
 
